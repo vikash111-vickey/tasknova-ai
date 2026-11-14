@@ -43,19 +43,30 @@ export const AnimatedBackground: React.FC = () => {
       window.addEventListener('resize', resize2D);
 
       const particleCount = 45;
-      const particles2D = Array.from({ length: particleCount }, () => ({
-        x: Math.random() * width,
-        y: Math.random() * height,
-        vx: (Math.random() - 0.5) * 0.1,
-        vy: (Math.random() - 0.5) * 0.1,
-        radius: Math.random() * 1.5 + 0.8,
-        isLavender: Math.random() < 0.25,
-      }));
+      const particles2D = Array.from({ length: particleCount }, () => {
+        const x = Math.random() * width;
+        const y = Math.random() * height;
+        return {
+          x,
+          y,
+          homeX: x,
+          homeY: y,
+          vx: 0,
+          vy: 0,
+          radius: Math.random() * 1.5 + 0.8,
+          isLavender: Math.random() < 0.25,
+        };
+      });
 
-      let mouse2D = { x: -1000, y: -1000 };
+      let mouse2D = { x: -1000, y: -1000, prevX: -1000, prevY: -1000, speed: 0 };
       const handleMouseMove2D = (e: MouseEvent) => {
+        const dx = e.clientX - mouse2D.prevX;
+        const dy = e.clientY - mouse2D.prevY;
+        mouse2D.speed = Math.sqrt(dx * dx + dy * dy);
         mouse2D.x = e.clientX;
         mouse2D.y = e.clientY;
+        mouse2D.prevX = e.clientX;
+        mouse2D.prevY = e.clientY;
       };
       window.addEventListener('mousemove', handleMouseMove2D);
 
@@ -80,32 +91,35 @@ export const AnimatedBackground: React.FC = () => {
           }
         }
 
-        // Draw and update points
+        // Draw and update points - ONLY move when mouse interacts
         for (const p of particles2D) {
-          // Mouse reaction in 2D
-          const mdx = p.x - mouse2D.x;
-          const mdy = p.y - mouse2D.y;
-          const mdist = Math.sqrt(mdx * mdx + mdy * mdy);
-          if (mdist < 140 && mdist > 0.1) {
-            const push = (1 - mdist / 140) * 1.5;
-            p.x += (mdx / mdist) * push;
-            p.y += (mdy / mdist) * push;
+          if (mouse2D.speed > 0.5) {
+            const mdx = p.x - mouse2D.x;
+            const mdy = p.y - mouse2D.y;
+            const mdist = Math.sqrt(mdx * mdx + mdy * mdy);
+            if (mdist < 140 && mdist > 0.1) {
+              const push = (1 - mdist / 140) * 2.0;
+              p.vx += (mdx / mdist) * push;
+              p.vy += (mdy / mdist) * push;
+            }
           }
+
+          // Spring back to home position
+          p.vx += (p.homeX - p.x) * 0.04;
+          p.vy += (p.homeY - p.y) * 0.04;
+          p.vx *= 0.86;
+          p.vy *= 0.86;
+
+          p.x += p.vx;
+          p.y += p.vy;
 
           ctx.beginPath();
           ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
           ctx.fillStyle = p.isLavender ? 'rgba(170, 136, 255, 0.75)' : 'rgba(220, 220, 230, 0.45)';
           ctx.fill();
-
-          if (!reducedMotion) {
-            p.x += p.vx;
-            p.y += p.vy;
-            if (p.x < 0) p.x = width;
-            if (p.x > width) p.x = 0;
-            if (p.y < 0) p.y = height;
-            if (p.y > height) p.y = 0;
-          }
         }
+
+        mouse2D.speed *= 0.85;
 
         if (!reducedMotion) {
           animId = requestAnimationFrame(render2D);
@@ -229,6 +243,9 @@ export const AnimatedBackground: React.FC = () => {
       colors[idx + 2] = c.b;
     }
 
+    // Capture resting home positions so particles only move upon mouse interaction
+    const homePositions = new Float32Array(positions);
+
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
@@ -325,163 +342,123 @@ export const AnimatedBackground: React.FC = () => {
     const localCursor = new THREE.Vector3();
 
     let animationFrameId: number;
-    const clock = new THREE.Clock();
 
     const animate = () => {
       animationFrameId = requestAnimationFrame(animate);
-      const elapsedTime = clock.getElapsedTime();
 
-      // Camera Gaze Lerp: smoothly and gently tracks cursor across viewport
-      mouse.x += (mouse.targetX - mouse.x) * 0.03;
-      mouse.y += (mouse.targetY - mouse.y) * 0.03;
+      // Camera Gaze Lerp: only responds when mouse is actively moved
+      mouse.x += (mouse.targetX - mouse.x) * 0.04;
+      mouse.y += (mouse.targetY - mouse.y) * 0.04;
 
-      const targetCamX = baseCameraPos.x - mouse.x * 0.35;
-      const targetCamY = baseCameraPos.y + mouse.y * 0.25;
-      camera.position.x += (targetCamX - camera.position.x) * 0.025;
-      camera.position.y += (targetCamY - camera.position.y) * 0.025;
+      const targetCamX = baseCameraPos.x - mouse.x * 0.25;
+      const targetCamY = baseCameraPos.y + mouse.y * 0.15;
+      camera.position.x += (targetCamX - camera.position.x) * 0.03;
+      camera.position.y += (targetCamY - camera.position.y) * 0.03;
       camera.lookAt(0, 0, 0);
 
-      // Subtle living multi-axis harmonic breathing of the group - slow and calm
-      pointsGroup.rotation.y = baseRotY + Math.sin(elapsedTime * 0.06) * 0.04;
-      pointsGroup.rotation.z = baseRotZ + Math.sin(elapsedTime * 0.05) * 0.03;
+      // Background structure stays completely fixed in space (no autonomous spinning or wobbling)
+      pointsGroup.rotation.set(baseRotX, baseRotY, baseRotZ);
 
-      // Project mouse into the particle cloud local coordinate space
-      raycaster.setFromCamera(new THREE.Vector2(mouse.x, mouse.y), camera);
-      raycaster.ray.intersectPlane(interactionPlane, worldCursorIntersect);
-      localCursor.copy(worldCursorIntersect);
-      pointsGroup.worldToLocal(localCursor);
+      // Mouse motion detection
+      const isMouseMoving = mouse.speed > 0.008;
+
+      if (isMouseMoving) {
+        raycaster.setFromCamera(new THREE.Vector2(mouse.x, mouse.y), camera);
+        raycaster.ray.intersectPlane(interactionPlane, worldCursorIntersect);
+        localCursor.copy(worldCursorIntersect);
+        pointsGroup.worldToLocal(localCursor);
+      }
 
       const posArr = geometry.attributes.position.array as Float32Array;
-      const colorArr = geometry.attributes.color.array as Float32Array;
 
       // Dynamic cursor interaction parameters
-      const localRadius = 1.15;
+      const localRadius = 1.25;
       const localRadiusSq = localRadius * localRadius;
-      const hasRecentMotion = mouse.speed > 0.02;
+      const localMouseVx = mouse.vx * 0.025;
+      const localMouseVy = mouse.vy * 0.025;
 
-      // Mouse local velocity vector estimation
-      const localMouseVx = mouse.vx * 0.02;
-      const localMouseVy = mouse.vy * 0.02;
+      let hasActiveMotion = false;
 
-      // Physics Loop: Slow, Majestic Living Curl Stream + Cursor Fluid Whirlpool
-      const orbitSpeed = 0.0016; // Slow majestic carousel stream (approx ~4x slower)
-      const curlFreq = 1.4;
-      const curlSpeed = 0.18; // Slow curl noise evolution
-
+      // Physics Loop: ONLY moves when the user moves their mouse
       for (let i = 0; i < particleCount; i++) {
         const idx = i * 3;
 
-        let px = posArr[idx];
-        let py = posArr[idx + 1];
-        let pz = posArr[idx + 2];
+        const px = posArr[idx];
+        const py = posArr[idx + 1];
+        const pz = posArr[idx + 2];
 
-        const isAmbientParticle = baseRadii[i * 2] === 0;
+        // 1. Cursor fluid swirl and repulsive wave - ONLY triggered by mouse movement
+        if (isMouseMoving) {
+          const dx = px - localCursor.x;
+          const dy = py - localCursor.y;
+          const dz = pz - localCursor.z;
+          const distSq = dx * dx + dy * dy + dz * dz;
 
-        // Perpetual gentle curl noise stream
-        const flowWeight = randomAttributes[idx + 1];
-        const s1 = Math.sin(py * curlFreq + elapsedTime * curlSpeed);
-        const c1 = Math.cos(pz * (curlFreq * 1.2) + elapsedTime * (curlSpeed * 0.8));
-        const s2 = Math.sin(pz * curlFreq + elapsedTime * (curlSpeed * 0.9));
-        const c2 = Math.cos(px * (curlFreq * 1.2) + elapsedTime * (curlSpeed * 0.7));
-        const s3 = Math.sin(px * curlFreq + elapsedTime * (curlSpeed * 0.85));
-        const c3 = Math.cos(py * (curlFreq * 1.2) + elapsedTime * curlSpeed);
+          if (distSq < localRadiusSq) {
+            const dist = Math.sqrt(distSq) + 0.001;
+            const falloff = 1.0 - dist / localRadius;
+            const falloffSq = falloff * falloff;
 
-        const curlX = (s1 + c1) * 0.0007 * flowWeight;
-        const curlY = (s2 + c2) * 0.0007 * flowWeight;
-        const curlZ = (s3 + c3) * 0.0006 * flowWeight;
+            // Swirl around cursor direction
+            const vortexStrength = 0.032;
+            velocities[idx] += (-dy / dist) * vortexStrength * falloffSq;
+            velocities[idx + 1] += (dx / dist) * vortexStrength * falloffSq;
 
-        velocities[idx] += curlX;
-        velocities[idx + 1] += curlY;
-        velocities[idx + 2] += curlZ;
+            // Push outward
+            const pushStrength = 0.022;
+            velocities[idx] += (dx / dist) * pushStrength * falloffSq;
+            velocities[idx + 1] += (dy / dist) * pushStrength * falloffSq;
+            velocities[idx + 2] += (dz / dist) * (pushStrength * 0.5) * falloffSq;
 
-        // Dynamic Cursor Fluid Interaction (Soft, elegant reaction to mouse)
-        const dx = px - localCursor.x;
-        const dy = py - localCursor.y;
-        const dz = pz - localCursor.z;
-        const distSq = dx * dx + dy * dy + dz * dz;
-
-        if (distSq < localRadiusSq) {
-          const dist = Math.sqrt(distSq) + 0.001;
-          const falloff = 1.0 - dist / localRadius;
-          const falloffSq = falloff * falloff;
-
-          // Tangential Vortex Whirlpool around cursor
-          const vortexStrength = 0.022;
-          velocities[idx] += (-dy / dist) * vortexStrength * falloffSq;
-          velocities[idx + 1] += (dx / dist) * vortexStrength * falloffSq;
-
-          // Outward Repulsive Bow Wave
-          const pushStrength = 0.015;
-          velocities[idx] += (dx / dist) * pushStrength * falloffSq;
-          velocities[idx + 1] += (dy / dist) * pushStrength * falloffSq;
-          velocities[idx + 2] += (dz / dist) * (pushStrength * 0.5) * falloffSq;
-
-          // Fluid Drag / Stirring Impulse along mouse movement
-          if (hasRecentMotion) {
-            const dragForce = Math.min(mouse.speed * 0.03, 0.035) * falloffSq;
+            // Fluid drag along cursor vector
+            const dragForce = Math.min(mouse.speed * 0.04, 0.05) * falloffSq;
             velocities[idx] += localMouseVx * dragForce;
             velocities[idx + 1] += localMouseVy * dragForce;
           }
         }
 
-        if (!isAmbientParticle) {
-          // Advance perpetual orbital stream along the sculpted ring
-          let u = originAngles[i * 2] + orbitSpeed;
-          if (u > Math.PI * 2) u -= Math.PI * 2;
-          originAngles[i * 2] = u;
+        // 2. Restoring spring force back to resting home position
+        const hx = homePositions[idx];
+        const hy = homePositions[idx + 1];
+        const hz = homePositions[idx + 2];
 
-          const v = originAngles[i * 2 + 1];
-          const rMajor = baseRadii[i * 2] + Math.sin(elapsedTime * 0.15 + u * 2) * 0.02;
-          const rMinor = baseRadii[i * 2 + 1];
+        const spring = 0.028;
+        velocities[idx] += (hx - px) * spring;
+        velocities[idx + 1] += (hy - py) * spring;
+        velocities[idx + 2] += (hz - pz) * spring;
 
-          // Torus baseline target coordinates
-          const targetX = (rMajor + rMinor * Math.cos(v)) * Math.cos(u);
-          const targetY = (rMajor + rMinor * Math.cos(v)) * Math.sin(u);
-          const targetZ = rMinor * Math.sin(v) + Math.sin(u * 2) * 0.08;
+        // 3. Strong friction/damping so particles settle into complete stillness immediately
+        velocities[idx] *= 0.86;
+        velocities[idx + 1] *= 0.86;
+        velocities[idx + 2] *= 0.86;
 
-          // Gentle Elastic Healing Spring Force back to Sculpted Ring
-          const spring = 0.012;
-          velocities[idx] += (targetX - px) * spring;
-          velocities[idx + 1] += (targetY - py) * spring;
-          velocities[idx + 2] += (targetZ - pz) * spring;
+        // 4. Update position only if moving, otherwise freeze at home coordinates
+        const vx = velocities[idx];
+        const vy = velocities[idx + 1];
+        const vz = velocities[idx + 2];
+        const isDisplaced = Math.abs(px - hx) > 0.0001 || Math.abs(py - hy) > 0.0001;
+
+        if (Math.abs(vx) > 0.00005 || Math.abs(vy) > 0.00005 || Math.abs(vz) > 0.00005 || isDisplaced) {
+          posArr[idx] += vx;
+          posArr[idx + 1] += vy;
+          posArr[idx + 2] += vz;
+          hasActiveMotion = true;
         } else {
-          // Ambient foreground particles drift slowly across the entire screen
-          velocities[idx] += originAngles[i * 2];
-          velocities[idx + 1] += originAngles[i * 2 + 1];
-
-          // Wrap around viewport bounds
-          if (px > 1.45) posArr[idx] = -1.45;
-          if (px < -1.45) posArr[idx] = 1.45;
-          if (py > 1.05) posArr[idx + 1] = -1.05;
-          if (py < -1.05) posArr[idx + 1] = 1.05;
-        }
-
-        // 5. Velocity Damping
-        velocities[idx] *= 0.94;
-        velocities[idx + 1] *= 0.94;
-        velocities[idx + 2] *= 0.94;
-
-        // 6. Integrate Position
-        posArr[idx] += velocities[idx];
-        posArr[idx + 1] += velocities[idx + 1];
-        posArr[idx + 2] += velocities[idx + 2];
-
-        // 7. Dynamic Sparkle / Shimmer Modulation - slow, relaxing pulse
-        const sparklePhase = randomAttributes[idx];
-        const sparkle = 0.75 + Math.sin(elapsedTime * 1.2 + sparklePhase * 24.0) * 0.25;
-        if (randomAttributes[idx + 2] < 0.22) {
-          // Vibrant lavender nodes pulse smoothly
-          colorArr[idx] = colorLavender.r * sparkle;
-          colorArr[idx + 1] = colorLavender.g * sparkle;
-          colorArr[idx + 2] = colorLavender.b * sparkle;
+          posArr[idx] = hx;
+          posArr[idx + 1] = hy;
+          posArr[idx + 2] = hz;
+          velocities[idx] = 0;
+          velocities[idx + 1] = 0;
+          velocities[idx + 2] = 0;
         }
       }
 
-      geometry.attributes.position.needsUpdate = true;
-      geometry.attributes.color.needsUpdate = true;
+      if (hasActiveMotion || isMouseMoving) {
+        geometry.attributes.position.needsUpdate = true;
+      }
 
-      // Gradually decay mouse velocity
-      mouse.speed *= 0.92;
+      // Smooth decay of mouse velocity
+      mouse.speed *= 0.82;
 
       renderer.render(scene, camera);
     };

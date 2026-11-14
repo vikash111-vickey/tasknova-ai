@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
@@ -11,11 +11,15 @@ export const AppLayout: React.FC = () => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+  const location = useLocation();
+
+  // Background particle effect only visible on the starting page (Landing Page '/')
+  const isStartingPage = location.pathname === '/';
 
   return (
     <div className="min-h-screen flex text-[#dddddd] bg-black font-mono selection:bg-[#aa88ff] selection:text-black overflow-hidden">
-      {/* Background layer */}
-      <AnimatedBackground />
+      {/* Background layer: only rendered on the starting page */}
+      {isStartingPage && <AnimatedBackground />}
 
       {/* Desktop Sidebar */}
       <div className="hidden md:block shrink-0">
