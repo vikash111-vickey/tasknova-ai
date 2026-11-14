@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: tasknova-ai
+    env: node
+    plan: starter
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3001
+      - key: CORS_ALLOWED_ORIGINS
+        value: https://tasknova-ai.onrender.com
+      - key: JWT_SECRET
+        generateValue: true
