@@ -6,6 +6,8 @@
 
 **TASKNOVA AI** is a resilient autonomous execution platform designed to plan, orchestrate, verify, and cryptographically audit multi-step workflows across business tools with human-in-the-loop governance and an immersive 3D spatial user interface.
 
+![TASKNOVA AI System Architecture](docs/architecture.jpg)
+
 ---
 
 ## ⚡ 5-Line Quickstart
