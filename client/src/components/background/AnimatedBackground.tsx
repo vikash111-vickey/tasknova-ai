@@ -46,8 +46,8 @@ export const AnimatedBackground: React.FC = () => {
       const particles2D = Array.from({ length: particleCount }, () => ({
         x: Math.random() * width,
         y: Math.random() * height,
-        vx: (Math.random() - 0.5) * 0.4,
-        vy: (Math.random() - 0.5) * 0.4,
+        vx: (Math.random() - 0.5) * 0.1,
+        vy: (Math.random() - 0.5) * 0.1,
         radius: Math.random() * 1.5 + 0.8,
         isLavender: Math.random() < 0.25,
       }));
@@ -180,8 +180,8 @@ export const AnimatedBackground: React.FC = () => {
         x = (Math.random() - 0.5) * 2.8;
         y = (Math.random() - 0.5) * 2.0;
         z = (Math.random() - 0.5) * 0.9;
-        originAngles[i * 2] = (Math.random() - 0.5) * 0.002; // ambient drift vx
-        originAngles[i * 2 + 1] = (Math.random() - 0.5) * 0.002; // ambient drift vy
+        originAngles[i * 2] = (Math.random() - 0.5) * 0.0004; // slow ambient drift vx
+        originAngles[i * 2 + 1] = (Math.random() - 0.5) * 0.0004; // slow ambient drift vy
         baseRadii[i * 2] = 0; // flag for ambient
         baseRadii[i * 2 + 1] = 0;
       } else {
@@ -331,19 +331,19 @@ export const AnimatedBackground: React.FC = () => {
       animationFrameId = requestAnimationFrame(animate);
       const elapsedTime = clock.getElapsedTime();
 
-      // Camera Gaze Lerp: smoothly tracks cursor across viewport
-      mouse.x += (mouse.targetX - mouse.x) * 0.06;
-      mouse.y += (mouse.targetY - mouse.y) * 0.06;
+      // Camera Gaze Lerp: smoothly and gently tracks cursor across viewport
+      mouse.x += (mouse.targetX - mouse.x) * 0.03;
+      mouse.y += (mouse.targetY - mouse.y) * 0.03;
 
-      const targetCamX = baseCameraPos.x - mouse.x * 0.85;
-      const targetCamY = baseCameraPos.y + mouse.y * 0.65;
-      camera.position.x += (targetCamX - camera.position.x) * 0.05;
-      camera.position.y += (targetCamY - camera.position.y) * 0.05;
+      const targetCamX = baseCameraPos.x - mouse.x * 0.35;
+      const targetCamY = baseCameraPos.y + mouse.y * 0.25;
+      camera.position.x += (targetCamX - camera.position.x) * 0.025;
+      camera.position.y += (targetCamY - camera.position.y) * 0.025;
       camera.lookAt(0, 0, 0);
 
-      // Subtle living multi-axis harmonic breathing of the group
-      pointsGroup.rotation.y = baseRotY + Math.sin(elapsedTime * 0.15) * 0.08;
-      pointsGroup.rotation.z = baseRotZ + Math.sin(elapsedTime * 0.12) * 0.06;
+      // Subtle living multi-axis harmonic breathing of the group - slow and calm
+      pointsGroup.rotation.y = baseRotY + Math.sin(elapsedTime * 0.06) * 0.04;
+      pointsGroup.rotation.z = baseRotZ + Math.sin(elapsedTime * 0.05) * 0.03;
 
       // Project mouse into the particle cloud local coordinate space
       raycaster.setFromCamera(new THREE.Vector2(mouse.x, mouse.y), camera);
@@ -355,19 +355,18 @@ export const AnimatedBackground: React.FC = () => {
       const colorArr = geometry.attributes.color.array as Float32Array;
 
       // Dynamic cursor interaction parameters
-      // Generous local radius: ~1.4 covers wide fluid interaction
-      const localRadius = 1.35;
+      const localRadius = 1.15;
       const localRadiusSq = localRadius * localRadius;
       const hasRecentMotion = mouse.speed > 0.02;
 
       // Mouse local velocity vector estimation
-      const localMouseVx = mouse.vx * 0.035;
-      const localMouseVy = mouse.vy * 0.035;
+      const localMouseVx = mouse.vx * 0.02;
+      const localMouseVy = mouse.vy * 0.02;
 
-      // Physics Loop: Infinite Living Curl Stream + Cursor Fluid Whirlpool + Restoring Torus
-      const orbitSpeed = 0.007; // Infinite carousel stream along the torus
-      const curlFreq = 1.8;
-      const curlSpeed = 0.65;
+      // Physics Loop: Slow, Majestic Living Curl Stream + Cursor Fluid Whirlpool
+      const orbitSpeed = 0.0016; // Slow majestic carousel stream (approx ~4x slower)
+      const curlFreq = 1.4;
+      const curlSpeed = 0.18; // Slow curl noise evolution
 
       for (let i = 0; i < particleCount; i++) {
         const idx = i * 3;
@@ -378,7 +377,7 @@ export const AnimatedBackground: React.FC = () => {
 
         const isAmbientParticle = baseRadii[i * 2] === 0;
 
-        // Perpetual curl noise stream
+        // Perpetual gentle curl noise stream
         const flowWeight = randomAttributes[idx + 1];
         const s1 = Math.sin(py * curlFreq + elapsedTime * curlSpeed);
         const c1 = Math.cos(pz * (curlFreq * 1.2) + elapsedTime * (curlSpeed * 0.8));
@@ -387,15 +386,15 @@ export const AnimatedBackground: React.FC = () => {
         const s3 = Math.sin(px * curlFreq + elapsedTime * (curlSpeed * 0.85));
         const c3 = Math.cos(py * (curlFreq * 1.2) + elapsedTime * curlSpeed);
 
-        const curlX = (s1 + c1) * 0.0028 * flowWeight;
-        const curlY = (s2 + c2) * 0.0028 * flowWeight;
-        const curlZ = (s3 + c3) * 0.0024 * flowWeight;
+        const curlX = (s1 + c1) * 0.0007 * flowWeight;
+        const curlY = (s2 + c2) * 0.0007 * flowWeight;
+        const curlZ = (s3 + c3) * 0.0006 * flowWeight;
 
         velocities[idx] += curlX;
         velocities[idx + 1] += curlY;
         velocities[idx + 2] += curlZ;
 
-        // Dynamic Cursor Fluid Interaction (Reacts Visibly to Mouse Cursor in foreground)
+        // Dynamic Cursor Fluid Interaction (Soft, elegant reaction to mouse)
         const dx = px - localCursor.x;
         const dy = py - localCursor.y;
         const dz = pz - localCursor.z;
@@ -407,19 +406,19 @@ export const AnimatedBackground: React.FC = () => {
           const falloffSq = falloff * falloff;
 
           // Tangential Vortex Whirlpool around cursor
-          const vortexStrength = 0.065;
+          const vortexStrength = 0.022;
           velocities[idx] += (-dy / dist) * vortexStrength * falloffSq;
           velocities[idx + 1] += (dx / dist) * vortexStrength * falloffSq;
 
           // Outward Repulsive Bow Wave
-          const pushStrength = 0.038;
+          const pushStrength = 0.015;
           velocities[idx] += (dx / dist) * pushStrength * falloffSq;
           velocities[idx + 1] += (dy / dist) * pushStrength * falloffSq;
           velocities[idx + 2] += (dz / dist) * (pushStrength * 0.5) * falloffSq;
 
           // Fluid Drag / Stirring Impulse along mouse movement
           if (hasRecentMotion) {
-            const dragForce = Math.min(mouse.speed * 0.08, 0.09) * falloffSq;
+            const dragForce = Math.min(mouse.speed * 0.03, 0.035) * falloffSq;
             velocities[idx] += localMouseVx * dragForce;
             velocities[idx + 1] += localMouseVy * dragForce;
           }
@@ -432,21 +431,21 @@ export const AnimatedBackground: React.FC = () => {
           originAngles[i * 2] = u;
 
           const v = originAngles[i * 2 + 1];
-          const rMajor = baseRadii[i * 2] + Math.sin(elapsedTime * 0.4 + u * 2) * 0.03;
+          const rMajor = baseRadii[i * 2] + Math.sin(elapsedTime * 0.15 + u * 2) * 0.02;
           const rMinor = baseRadii[i * 2 + 1];
 
           // Torus baseline target coordinates
           const targetX = (rMajor + rMinor * Math.cos(v)) * Math.cos(u);
           const targetY = (rMajor + rMinor * Math.cos(v)) * Math.sin(u);
-          const targetZ = rMinor * Math.sin(v) + Math.sin(u * 2) * 0.12;
+          const targetZ = rMinor * Math.sin(v) + Math.sin(u * 2) * 0.08;
 
-          // Elastic Healing Spring Force back to Sculpted Ring
-          const spring = 0.026;
+          // Gentle Elastic Healing Spring Force back to Sculpted Ring
+          const spring = 0.012;
           velocities[idx] += (targetX - px) * spring;
           velocities[idx + 1] += (targetY - py) * spring;
           velocities[idx + 2] += (targetZ - pz) * spring;
         } else {
-          // Ambient foreground particles drift across the entire screen
+          // Ambient foreground particles drift slowly across the entire screen
           velocities[idx] += originAngles[i * 2];
           velocities[idx + 1] += originAngles[i * 2 + 1];
 
@@ -458,18 +457,18 @@ export const AnimatedBackground: React.FC = () => {
         }
 
         // 5. Velocity Damping
-        velocities[idx] *= 0.932;
-        velocities[idx + 1] *= 0.932;
-        velocities[idx + 2] *= 0.932;
+        velocities[idx] *= 0.94;
+        velocities[idx + 1] *= 0.94;
+        velocities[idx + 2] *= 0.94;
 
         // 6. Integrate Position
         posArr[idx] += velocities[idx];
         posArr[idx + 1] += velocities[idx + 1];
         posArr[idx + 2] += velocities[idx + 2];
 
-        // 7. Dynamic Sparkle / Shimmer Modulation
+        // 7. Dynamic Sparkle / Shimmer Modulation - slow, relaxing pulse
         const sparklePhase = randomAttributes[idx];
-        const sparkle = 0.72 + Math.sin(elapsedTime * 3.5 + sparklePhase * 24.0) * 0.28;
+        const sparkle = 0.75 + Math.sin(elapsedTime * 1.2 + sparklePhase * 24.0) * 0.25;
         if (randomAttributes[idx + 2] < 0.22) {
           // Vibrant lavender nodes pulse smoothly
           colorArr[idx] = colorLavender.r * sparkle;
